@@ -1,5 +1,6 @@
-# DataVisualization
+# Data Visualization in Education
 
+Este repositório reúne uma coleção de projetos voltados à visualização de dados na educação no contexto do IFNMG , com o objetivo de apoiar professores, gestores e pesquisadores na análise pedagógica de desempenho estudantil. Cada ferramenta foi desenvolvida para transformar dados brutos — muitas vezes difíceis de interpretar — em gráficos claros, acessíveis e orientados à tomada de decisão pedagógica.<br>
 ## Conselho de Classe Cajui 
 É uma aplicação que facilita o processo de análise de desempenho estudantil ao converter documentos .docx disponibilizados pelo setor pedagógico em visualizações acessíveis e organizadas. Essa ferramenta visa otimizar os conselhos de classe, tornando os dados mais claros e objetivos para professores e gestores educacionais.
 
