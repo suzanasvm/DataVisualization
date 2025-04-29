@@ -4,6 +4,9 @@ import os
 import io
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Border, Side
+from xhtml2pdf import pisa
+from io import BytesIO
+import base64
 
 st.set_page_config(layout="wide")
 st.title("Conselho de Classe IFNMG Almenara")
@@ -57,7 +60,6 @@ disciplinas_para_analisar = pivot.drop(columns=disciplinas_zeradas)
 pivot['Disciplinas abaixo da média'] = (disciplinas_para_analisar < nota_corte).sum(axis=1)
 
 # Calcular a média global
-#pivot['Média global'] = pivot.mean(axis=1).round(2)
 pivot['Média global'] = pivot.drop(columns=['Disciplinas abaixo da média']).mean(axis=1).round(2)
 
 # Agora, ordena de forma correta, colocando os alunos com mais disciplinas abaixo da média no topo
@@ -72,9 +74,9 @@ def highlight_cells(val, col_name, col_list):
         elif col_name in disciplinas_zeradas:
             return 'background-color: #fff3cd; color: #856404'  # amarelo
         elif val < nota_corte:
-            return 'background-color: #f8d7da; color: red'
+            return 'background-color: #f8d7da; color: red'  # vermelho para abaixo da média
         else:
-            return 'background-color: #d4edda; color: green'
+            return 'background-color: #d4edda; color: green'  # verde para acima da média
     except:
         return ''
 
@@ -170,9 +172,9 @@ def highlight_cells_abreviado(val, col_name, col_list):
         elif col_name in disciplinas_zeradas_abreviadas:
             return 'background-color: #fff3cd; color: #856404'  # amarelo
         elif val < nota_corte:
-            return 'background-color: #f8d7da; color: red'
+            return 'background-color: #f8d7da; color: red'  # vermelho para abaixo da média
         else:
-            return 'background-color: #d4edda; color: green'
+            return 'background-color: #d4edda; color: green'  # verde para acima da média
     except:
         return ''
 
@@ -193,4 +195,106 @@ st.download_button(
     data=excel_completo,
     file_name=f"{arquivos_disponiveis[turma_escolhida].replace('.csv','')}_completo.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+# Função para gerar HTML com as formatações desejadas
+def gerar_html_tabela(df, titulo, nota_corte, disciplinas_zeradas, disciplinas_zeradas_abreviadas):
+    html = f"""
+    <html>
+    <head>
+        <style>
+            @page {{
+                size: A4 landscape;
+                margin: 2mm;
+            }}
+            body {{
+                font-family: Arial, sans-serif;
+                font-size: 6px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+            }}
+            th, td {{
+                border: 1px solid #000;
+                padding: 1px;
+                text-align: center;
+            }}
+            th {{
+                background-color: #f2f2f2;
+            }}
+            h2 {{
+                text-align: center;
+            }}
+            .abaixo-da-media {{
+                background-color: #f8d7da;
+                color: red;
+            }}
+            .acima-da-media {{
+                background-color: #d4edda;
+                color: green;
+            }}
+            .disciplina-zerada {{
+                background-color: #fff3cd;
+                color: #856404;
+            }}
+            .disciplina-neutra {{
+                background-color: #FFFFFF;
+                color: black;
+            }}
+        </style>
+    </head>
+    <body>
+        <h2>{titulo}</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    {"".join([f"<th>{col}</th>" for col in df.columns])}
+                </tr>
+            </thead>
+            <tbody>
+    """
+
+    for index, row in df.iterrows():
+        html += f"<tr><td>{index}</td>"
+        for col_name, value in row.items():
+            cell_class = ""
+            if col_name == 'Disciplinas abaixo da média':
+                cell_class = "disciplina-neutra"
+            if col_name in disciplinas_zeradas:
+                cell_class = "disciplina-zerada"
+            elif value < nota_corte:
+                cell_class = "abaixo-da-media"
+            else:
+                cell_class = "acima-da-media"
+            html += f'<td class="{cell_class}">{value}</td>'
+        html += "</tr>"
+
+    html += """
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+    return html
+
+# Função para converter o HTML em PDF
+def gerar_pdf(html):
+    pdf = BytesIO()
+    pisa.CreatePDF(io.BytesIO(html.encode('utf-8')), dest=pdf)
+    pdf.seek(0)
+    return pdf
+
+# Gerando HTML para o PDF
+html = gerar_html_tabela(pivot_sorted, f"Boletim Ensino Médio Integrado - Técnico {turma_escolhida}", nota_corte, disciplinas_zeradas, disciplinas_zeradas_abreviadas)
+
+# Gerando PDF
+pdf = gerar_pdf(html)
+
+# Botão para download do PDF
+st.download_button(
+    label="📥 Baixar PDF",
+    data=pdf,
+    file_name=f"{arquivos_disponiveis[turma_escolhida].replace('.csv', '')}_boletim.pdf",
+    mime="application/pdf"
 )
