@@ -1,4 +1,7 @@
 streamlit
 pandas
 openpyxl
+xhtml2pdf
+reportlab
+pillow
 authlib
