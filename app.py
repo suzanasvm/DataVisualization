@@ -94,7 +94,7 @@ if arquivo is not None:
             "Espessura das barras (0.1 a 1.0):",
             min_value=0.1,
             max_value=1.0,
-            value=0.8,
+            value=0.6,
             step=0.1
         )
         def gerar_grafico(coluna, titulo):
@@ -209,7 +209,7 @@ if arquivo is not None:
                 medias["Percentual"] = medias["Media"] * 100
                 medias["Habilidade"] = medias["Questao"].map(questoes_detalhes)
 
-                medias = medias.sort_values(by="Percentual").head(top_x)
+                medias = medias.sort_values(by="Percentual", ascending=True).head(top_x)
 
                 fig = px.bar(
                     medias,
@@ -219,7 +219,9 @@ if arquivo is not None:
                     text=medias["Percentual"].map(lambda x: f"{x:.1f}%"),
                     title=f"Top {top_x} Questões Mais Difíceis - Visão Geral",
                     color="Percentual",
-                    color_continuous_scale="RdYlGn"
+                    color_continuous_scale="RdYlGn",
+                    range_color=[0, 100],
+                    category_orders={"Questao": medias["Questao"].tolist()}
                 )
 
                 fig.update_traces(textposition="outside")
@@ -261,7 +263,7 @@ if arquivo is not None:
                         medias["Percentual"] = medias["Media"] * 100
                         medias["Habilidade"] = medias["Questao"].map(questoes_detalhes)
 
-                        medias = medias.sort_values(by="Percentual").head(top_x)
+                        medias = medias.sort_values(by="Percentual", ascending=True).head(top_x)
 
                         with colunas_layout[i]:
 
@@ -273,13 +275,15 @@ if arquivo is not None:
                                 text=medias["Percentual"].map(lambda x: f"{x:.1f}%"),
                                 title=f"{curso} - Top {top_x}",
                                 color="Percentual",
-                                color_continuous_scale="RdYlGn"
+                                color_continuous_scale="RdYlGn",
+                                range_color=[0, 100],
+                                category_orders={"Questao": medias["Questao"].tolist()}
                             )
 
                             fig.update_traces(textposition="outside")
 
                             fig.update_layout(
-                                xaxis_title="%",
+                                xaxis_title="Percentual Médio",
                                 yaxis_title="Questão",
                                 height=500
                             )
