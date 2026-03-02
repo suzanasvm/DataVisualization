@@ -5,7 +5,7 @@ import re
 
 st.set_page_config(layout="wide")
 
-st.title("Análise de Desempenho por Curso")
+st.title("Avaliação Diagnóstica - IFNMG - 1°anos")
 
 menu = st.sidebar.selectbox(
     "Selecione o Menu:",
