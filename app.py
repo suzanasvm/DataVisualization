@@ -90,8 +90,15 @@ if arquivo is not None:
             default=["Geral", "Matemática", "Português"]
         )
 
+        espessura_barra = st.number_input(
+            "Espessura das barras (0.1 a 1.0):",
+            min_value=0.1,
+            max_value=1.0,
+            value=0.6,
+            step=0.1
+        )
         def gerar_grafico(coluna, titulo):
-            
+
             df_ordenado = df.sort_values(by=coluna, ascending=False).copy()
             df_ordenado["Percentual"] = (df_ordenado[coluna] / 1) * 100
 
@@ -110,7 +117,10 @@ if arquivo is not None:
                 category_orders={"Curso_Formatado": df_ordenado["Curso_Formatado"].tolist()}
             )
 
-            fig.update_traces(textposition="outside")
+            fig.update_traces(
+                textposition="outside",
+                width=espessura_barra
+            )
 
             fig.update_layout(
                 yaxis_title="Desempenho (%)",
