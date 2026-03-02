@@ -94,7 +94,7 @@ if arquivo is not None:
             "Espessura das barras (0.1 a 1.0):",
             min_value=0.1,
             max_value=1.0,
-            value=0.6,
+            value=0.8,
             step=0.1
         )
         def gerar_grafico(coluna, titulo):
