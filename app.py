@@ -87,7 +87,7 @@ if arquivo is not None:
         opcoes = st.multiselect(
             "Selecione quais gráficos deseja visualizar:",
             ["Geral", "Matemática", "Português"],
-            default=["Geral", "Matemática", "Português"]
+            default=["Matemática"]
         )
 
         espessura_barra = st.number_input(
