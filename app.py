@@ -22,6 +22,39 @@ cores = {
 }
 
 # ===============================
+# CONFIGURAÇÕES GLOBAIS DE FONTE
+# ===============================
+st.sidebar.markdown("---")
+st.sidebar.markdown("### ⚙️ Configurações de Fonte")
+
+tamanho_titulo = st.sidebar.slider(
+    "Tamanho da fonte dos títulos dos gráficos:",
+    min_value=10,
+    max_value=30,
+    value=16,
+    step=1,
+    key="font_titulo"
+)
+
+tamanho_dados = st.sidebar.slider(
+    "Tamanho da fonte dos dados (rótulos) dos gráficos:",
+    min_value=8,
+    max_value=24,
+    value=12,
+    step=1,
+    key="font_dados"
+)
+
+tamanho_eixo = st.sidebar.slider(
+    "Tamanho da fonte dos eixos:",
+    min_value=8,
+    max_value=20,
+    value=11,
+    step=1,
+    key="font_eixo"
+)
+
+# ===============================
 # MENU 1 e 2 - arquivo original
 # ===============================
 if menu in ["Notas Gerais - Matemática", "Habilidades - Matemática"]:
@@ -101,6 +134,13 @@ if menu in ["Notas Gerais - Matemática", "Habilidades - Matemática"]:
                 step=0.1
             )
 
+            # Títulos contextualizados por opção
+            titulos_contexto = {
+                "Geral": "Avaliação Diagnóstica — Desempenho Geral por Curso<br><sup>Matemática e Língua Portuguesa | IFNMG — 1º Anos</sup>",
+                "Matemática": "Avaliação Diagnóstica — Matemática<br><sup>Percentual médio de acertos por curso | IFNMG — 1º Anos</sup>",
+                "Português": "Avaliação Diagnóstica — Língua Portuguesa<br><sup>Percentual médio de acertos por curso | IFNMG — 1º Anos</sup>"
+            }
+
             def gerar_grafico(coluna, titulo):
 
                 df_ordenado = df.sort_values(by=coluna, ascending=False).copy()
@@ -123,13 +163,24 @@ if menu in ["Notas Gerais - Matemática", "Habilidades - Matemática"]:
 
                 fig.update_traces(
                     textposition="outside",
-                    width=espessura_barra
+                    width=espessura_barra,
+                    textfont=dict(size=tamanho_dados)
                 )
 
                 fig.update_layout(
+                    title=dict(
+                        text=titulo,
+                        font=dict(size=tamanho_titulo)
+                    ),
                     yaxis_title="Desempenho (%)",
                     xaxis_title="Curso",
-                    yaxis=dict(range=[0, 100]),
+                    yaxis=dict(
+                        range=[0, 100],
+                        tickfont=dict(size=tamanho_eixo)
+                    ),
+                    xaxis=dict(
+                        tickfont=dict(size=tamanho_eixo)
+                    ),
                     showlegend=False
                 )
 
@@ -141,14 +192,16 @@ if menu in ["Notas Gerais - Matemática", "Habilidades - Matemática"]:
                 for i, opcao in enumerate(opcoes):
                     with colunas[i]:
 
+                        titulo_ctx = titulos_contexto.get(opcao, opcao)
+
                         if opcao == "Geral":
-                            fig = gerar_grafico("Media_Notas_Geral", "Média Geral")
+                            fig = gerar_grafico("Media_Notas_Geral", titulo_ctx)
 
                         elif opcao == "Matemática":
-                            fig = gerar_grafico("Media_Notas_Matematica", "Média em Matemática")
+                            fig = gerar_grafico("Media_Notas_Matematica", titulo_ctx)
 
                         elif opcao == "Português":
-                            fig = gerar_grafico("Media_Notas_Portugues", "Média em Português")
+                            fig = gerar_grafico("Media_Notas_Portugues", titulo_ctx)
 
                         st.plotly_chart(fig, use_container_width=True)
 
@@ -212,24 +265,38 @@ if menu in ["Notas Gerais - Matemática", "Habilidades - Matemática"]:
 
                     medias = medias.sort_values(by="Percentual", ascending=True).head(top_x)
 
+                    titulo_hab_geral = (
+                        f"Matemática — Top {top_x} Habilidades com Menor Desempenho<br>"
+                        f"<sup>Percentual médio de acertos — Visão Geral de Todos os Cursos | IFNMG — 1º Anos</sup>"
+                    )
+
                     fig = px.bar(
                         medias,
                         x="Percentual",
                         y="Questao",
                         orientation="h",
                         text=medias["Percentual"].map(lambda x: f"{x:.1f}%"),
-                        title=f"Top {top_x} Questões Mais Difíceis - Visão Geral",
+                        title=titulo_hab_geral,
                         color="Percentual",
                         color_continuous_scale="RdYlGn",
                         range_color=[0, 100],
                         category_orders={"Questao": medias["Questao"].tolist()}
                     )
 
-                    fig.update_traces(textposition="outside")
+                    fig.update_traces(
+                        textposition="outside",
+                        textfont=dict(size=tamanho_dados)
+                    )
 
                     fig.update_layout(
+                        title=dict(
+                            text=titulo_hab_geral,
+                            font=dict(size=tamanho_titulo)
+                        ),
                         xaxis_title="Percentual Médio de Acertos",
                         yaxis_title="Questão",
+                        xaxis=dict(tickfont=dict(size=tamanho_eixo)),
+                        yaxis=dict(tickfont=dict(size=tamanho_eixo)),
                         height=500
                     )
 
@@ -263,6 +330,11 @@ if menu in ["Notas Gerais - Matemática", "Habilidades - Matemática"]:
 
                             medias = medias.sort_values(by="Percentual", ascending=True).head(top_x)
 
+                            titulo_curso = (
+                                f"Matemática — {curso}<br>"
+                                f"<sup>Top {top_x} habilidades com menor desempenho | IFNMG — 1º Anos</sup>"
+                            )
+
                             with colunas_layout[i]:
 
                                 fig = px.bar(
@@ -271,18 +343,27 @@ if menu in ["Notas Gerais - Matemática", "Habilidades - Matemática"]:
                                     y="Questao",
                                     orientation="h",
                                     text=medias["Percentual"].map(lambda x: f"{x:.1f}%"),
-                                    title=f"{curso} - Top {top_x}",
+                                    title=titulo_curso,
                                     color="Percentual",
                                     color_continuous_scale="RdYlGn",
                                     range_color=[0, 100],
                                     category_orders={"Questao": medias["Questao"].tolist()}
                                 )
 
-                                fig.update_traces(textposition="outside")
+                                fig.update_traces(
+                                    textposition="outside",
+                                    textfont=dict(size=tamanho_dados)
+                                )
 
                                 fig.update_layout(
+                                    title=dict(
+                                        text=titulo_curso,
+                                        font=dict(size=tamanho_titulo)
+                                    ),
                                     xaxis_title="Percentual Médio",
                                     yaxis_title="Questão",
+                                    xaxis=dict(tickfont=dict(size=tamanho_eixo)),
+                                    yaxis=dict(tickfont=dict(size=tamanho_eixo)),
                                     height=500
                                 )
 
@@ -316,7 +397,6 @@ elif menu == "Habilidades Língua Portuguesa":
 
         df_lp = pd.read_csv(arquivo_lp)
 
-        # Definição das categorias de demanda
         demandas_urgentes = [
             "ESCRITA EM BLOCO",
             "PARAGRAFAÇÃO",
@@ -334,7 +414,6 @@ elif menu == "Habilidades Língua Portuguesa":
             "JUSTAPOSIÇÕES",
         ]
 
-        # Identificar colunas presentes no CSV
         colunas_urgentes = [col for col in demandas_urgentes if col in df_lp.columns]
         colunas_secundarias = [col for col in demandas_secundarias if col in df_lp.columns]
 
@@ -344,7 +423,6 @@ elif menu == "Habilidades Língua Portuguesa":
             st.info(f"Colunas encontradas: {list(df_lp.columns)}")
         else:
 
-            # Converter colunas para numérico
             for col in colunas_urgentes + colunas_secundarias:
                 df_lp[col] = pd.to_numeric(df_lp[col], errors="coerce").fillna(0)
 
@@ -356,7 +434,6 @@ elif menu == "Habilidades Língua Portuguesa":
 
                 lista_cursos = sorted(df_lp[col_curso].unique())
 
-                # Calcular % de alunos com valor 1 por curso e por item
                 resumo_por_curso = []
 
                 for curso in lista_cursos:
@@ -369,7 +446,6 @@ elif menu == "Habilidades Língua Portuguesa":
                         pct = (df_curso[col] == 1).sum() / total * 100 if total > 0 else 0
                         row[col] = round(pct, 1)
 
-                    # Percentual médio por categoria
                     if colunas_urgentes:
                         vals = [(df_curso[c] == 1).sum() / total * 100 for c in colunas_urgentes]
                         row["Media_Urgentes"] = round(sum(vals) / len(vals), 1)
@@ -385,7 +461,7 @@ elif menu == "Habilidades Língua Portuguesa":
                     resumo_por_curso.append(row)
 
                 df_resumo = pd.DataFrame(resumo_por_curso)
-               
+
                 # ============================
                 # ANÁLISE: ALUNOS COM MAIS DE X DEMANDAS URGENTES
                 # ============================
@@ -434,6 +510,11 @@ elif menu == "Habilidades Língua Portuguesa":
                             key="espessura_urgentes"
                         )
 
+                    titulo_urgentes = (
+                        f"Língua Portuguesa — Alunos com Mais de {limite_x} Demandas Urgentes por Curso<br>"
+                        f"<sup>Análise de ocorrência de dificuldades prioritárias na escrita | IFNMG — 1º Anos</sup>"
+                    )
+
                     fig_urg = go.Figure()
                     for _, row_urg in df_urgencia.iterrows():
                         curso_key = str(row_urg["Curso"]).lower()
@@ -446,13 +527,25 @@ elif menu == "Habilidades Língua Portuguesa":
                             width=espessura_urg,
                             text=f"{row_urg['Percentual (%)']:.1f}%",
                             textposition="outside",
+                            textfont=dict(size=tamanho_dados),
                             showlegend=False
                         ))
 
                     fig_urg.update_layout(
-                        title=f"% de alunos com mais de {limite_x} demandas urgentes por curso - Lingua Portuguesa",
-                        yaxis=dict(range=[0, 115], title="% de Alunos"),
-                        xaxis=dict(title="Curso", type="category"),
+                        title=dict(
+                            text=titulo_urgentes,
+                            font=dict(size=tamanho_titulo)
+                        ),
+                        yaxis=dict(
+                            range=[0, 115],
+                            title="% de Alunos",
+                            tickfont=dict(size=tamanho_eixo)
+                        ),
+                        xaxis=dict(
+                            title="Curso",
+                            type="category",
+                            tickfont=dict(size=tamanho_eixo)
+                        ),
                         bargap=round(1 - espessura_urg, 2),
                         height=420
                     )
@@ -519,7 +612,7 @@ elif menu == "Habilidades Língua Portuguesa":
                     with col_quebra:
                         quebrar_linha = st.checkbox(
                             "Quebrar em linhas (máx. 3 por linha)",
-                            value=False,
+                            value=True,
                             key="quebra_lp"
                         )
 
@@ -561,7 +654,6 @@ elif menu == "Habilidades Língua Portuguesa":
                                 "Cor": cores_item
                             })
 
-                            # Ordenar: urgentes primeiro (desc percentual), depois secundárias (desc percentual)
                             df_plot["ordem_cat"] = df_plot["Categoria"].map({
                                 "Demanda Urgente": 0,
                                 "Demanda Secundária": 1
@@ -571,7 +663,6 @@ elif menu == "Habilidades Língua Portuguesa":
                                 ascending=[True, False]
                             ).reset_index(drop=True)
 
-                            # Inserir separador visual entre os grupos
                             SEPARADOR = "─────────────────"
                             if colunas_urgentes and colunas_secundarias:
                                 idx_primeira_sec = df_plot[df_plot["Categoria"] == "Demanda Secundária"].index[0]
@@ -588,9 +679,13 @@ elif menu == "Habilidades Língua Portuguesa":
                                     df_plot.iloc[idx_primeira_sec:]
                                 ]).reset_index(drop=True)
 
-                            # Ordem do eixo Y (de baixo para cima no gráfico horizontal)
                             ordem_y = df_plot["Item"].tolist()[::-1]
                             total_itens = len(df_plot)
+
+                            titulo_detalhe = (
+                                f"Língua Portuguesa — <b>{curso}</b><br>"
+                                f"<sup>{total_alunos} alunos | IFNMG — 1º Anos</sup>"
+                            )
 
                             with colunas_layout[i]:
 
@@ -598,7 +693,6 @@ elif menu == "Habilidades Língua Portuguesa":
 
                                 for _, r in df_plot.iterrows():
                                     if r["Item"] == SEPARADOR:
-                                        # Barra invisível só para ocupar espaço
                                         fig.add_trace(go.Bar(
                                             x=[0],
                                             y=[r["Item"]],
@@ -616,17 +710,25 @@ elif menu == "Habilidades Língua Portuguesa":
                                             marker_color=r["Cor"],
                                             text=f"{r['Percentual']:.1f}%",
                                             textposition="outside",
+                                            textfont=dict(size=tamanho_dados),
                                             showlegend=False
                                         ))
 
                                 fig.update_layout(
-                                    title=f"<b>{curso}</b><br><sup>{total_alunos} alunos</sup>",
-                                    xaxis=dict(range=[0, 130], title="% com Ocorrência"),
+                                    title=dict(
+                                        text=titulo_detalhe,
+                                        font=dict(size=tamanho_titulo)
+                                    ),
+                                    xaxis=dict(
+                                        range=[0, 130],
+                                        title="% com Ocorrência",
+                                        tickfont=dict(size=tamanho_eixo)
+                                    ),
                                     yaxis=dict(
                                         title="",
                                         categoryorder="array",
                                         categoryarray=ordem_y,
-                                        tickfont=dict(size=12),
+                                        tickfont=dict(size=tamanho_eixo),
                                         ticklabeloverflow="allow"
                                     ),
                                     height=120 + (total_itens * 55),
@@ -635,7 +737,6 @@ elif menu == "Habilidades Língua Portuguesa":
                                     bargap=round(1 - grossura_barras, 2),
                                 )
 
-                                # Anotações de legenda de categoria
                                 if colunas_urgentes and colunas_secundarias:
                                     fig.add_annotation(
                                         text="🔴 Demandas Urgentes",
@@ -656,8 +757,6 @@ elif menu == "Habilidades Língua Portuguesa":
 
                 else:
                     st.info("Selecione pelo menos um curso.")
-
-
 
     else:
         st.info("📂 Envie o arquivo CSV com os dados de Língua Portuguesa para começar.")
