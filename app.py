@@ -385,42 +385,112 @@ elif menu == "Habilidades Língua Portuguesa":
                     resumo_por_curso.append(row)
 
                 df_resumo = pd.DataFrame(resumo_por_curso)
+               
+                # ============================
+                # ANÁLISE: ALUNOS COM MAIS DE X DEMANDAS URGENTES
+                # ============================
+                st.markdown("---")
+                st.markdown("### Alunos com Alto Número de Demandas Urgentes")
+                st.caption("Percentual de alunos com mais de X itens urgentes marcados como 1")
+
+                col_x, _ = st.columns([1, 3])
+                with col_x:
+                    limite_x = st.number_input(
+                        "Mínimo de demandas urgentes:",
+                        min_value=1,
+                        max_value=len(colunas_urgentes) if colunas_urgentes else 7,
+                        value=4,
+                        step=1,
+                        key="limite_urgentes"
+                    )
+
+                if colunas_urgentes:
+
+                    df_lp["_total_urgentes"] = df_lp[colunas_urgentes].sum(axis=1)
+
+                    dados_urgencia = []
+                    for curso in lista_cursos:
+                        df_c = df_lp[df_lp[col_curso] == curso]
+                        total = len(df_c)
+                        acima = df_c[df_c["_total_urgentes"] > limite_x]
+                        pct = round(len(acima) / total * 100, 1) if total > 0 else 0
+                        dados_urgencia.append({
+                            "Curso": curso,
+                            "Total Alunos": total,
+                            f"Com mais de {limite_x} urgentes": len(acima),
+                            "Percentual (%)": pct
+                        })
+
+                    df_urgencia = pd.DataFrame(dados_urgencia).sort_values("Percentual (%)", ascending=False)
+
+                    col_esp_urg, _ = st.columns([1, 3])
+                    with col_esp_urg:
+                        espessura_urg = st.number_input(
+                            "Espessura das barras (0.1 a 1.0):",
+                            min_value=0.1,
+                            max_value=1.0,
+                            value=0.9,
+                            step=0.05,
+                            key="espessura_urgentes"
+                        )
+
+                    fig_urg = go.Figure()
+                    for _, row_urg in df_urgencia.iterrows():
+                        curso_key = str(row_urg["Curso"]).lower()
+                        cor = cores.get(curso_key, "#636efa")
+                        fig_urg.add_trace(go.Bar(
+                            x=[row_urg["Curso"]],
+                            y=[row_urg["Percentual (%)"]],
+                            name=row_urg["Curso"],
+                            marker_color=cor,
+                            width=espessura_urg,
+                            text=f"{row_urg['Percentual (%)']:.1f}%",
+                            textposition="outside",
+                            showlegend=False
+                        ))
+
+                    fig_urg.update_layout(
+                        title=f"% de alunos com mais de {limite_x} demandas urgentes por curso - Lingua Portuguesa",
+                        yaxis=dict(range=[0, 115], title="% de Alunos"),
+                        xaxis=dict(title="Curso", type="category"),
+                        bargap=round(1 - espessura_urg, 2),
+                        height=420
+                    )
+
+                    st.plotly_chart(fig_urg, use_container_width=True)
+
+                    st.dataframe(df_urgencia, use_container_width=True, hide_index=True)
+
+                    with st.expander(f"📋 Ver lista de alunos com mais de {limite_x} demandas urgentes"):
+                        col_nome = "NOME" if "NOME" in df_lp.columns else df_lp.columns[0]
+                        for curso in lista_cursos:
+                            df_c = df_lp[df_lp[col_curso] == curso]
+                            alunos_acima = df_c[df_c["_total_urgentes"] > limite_x][[col_nome, "_total_urgentes"] + colunas_urgentes].copy()
+                            alunos_acima = alunos_acima.rename(columns={"_total_urgentes": "Total Urgentes"})
+                            alunos_acima = alunos_acima.sort_values("Total Urgentes", ascending=False)
+
+                            if len(alunos_acima) > 0:
+                                st.markdown(f"**{curso}** — {len(alunos_acima)} aluno(s)")
+                                st.dataframe(alunos_acima, use_container_width=True, hide_index=True)
+                            else:
+                                st.markdown(f"**{curso}** — nenhum aluno acima do limite")
 
                 # ============================
-                # VISÃO COMPARATIVA ENTRE CURSOS
+                # TABELA RESUMO
                 # ============================
-                st.markdown("### Comparativo Geral por Curso")
-                st.caption("Percentual médio de alunos com ocorrência (valor = 1) por categoria de demanda")
+                st.markdown("---")
+                st.markdown("### Tabela Resumo")
 
-                fig_comp = go.Figure()
+                colunas_exibir = ["Curso", "Total Alunos", "Media_Urgentes", "Media_Secundarias"] + colunas_urgentes + colunas_secundarias
+                colunas_exibir = [c for c in colunas_exibir if c in df_resumo.columns]
 
-                fig_comp.add_trace(go.Bar(
-                    name="Demandas Urgentes",
-                    x=df_resumo["Curso"],
-                    y=df_resumo["Media_Urgentes"],
-                    marker_color="#d62728",
-                    text=df_resumo["Media_Urgentes"].map(lambda x: f"{x:.1f}%"),
-                    textposition="outside"
-                ))
+                df_exibir = df_resumo[colunas_exibir].copy()
+                df_exibir = df_exibir.rename(columns={
+                    "Media_Urgentes": "Média Urgentes (%)",
+                    "Media_Secundarias": "Média Secundárias (%)"
+                })
 
-                fig_comp.add_trace(go.Bar(
-                    name="Demandas Secundárias",
-                    x=df_resumo["Curso"],
-                    y=df_resumo["Media_Secundarias"],
-                    marker_color="#ff7f0e",
-                    text=df_resumo["Media_Secundarias"].map(lambda x: f"{x:.1f}%"),
-                    textposition="outside"
-                ))
-
-                fig_comp.update_layout(
-                    barmode="group",
-                    yaxis=dict(range=[0, 110], title="% de Alunos com Ocorrência"),
-                    xaxis_title="Curso",
-                    legend_title="Categoria",
-                    height=450
-                )
-
-                st.plotly_chart(fig_comp, use_container_width=True)
+                st.dataframe(df_exibir, use_container_width=True)
 
                 # ============================
                 # GRÁFICO POR CURSO - DETALHADO
@@ -587,94 +657,7 @@ elif menu == "Habilidades Língua Portuguesa":
                 else:
                     st.info("Selecione pelo menos um curso.")
 
-                # ============================
-                # ANÁLISE: ALUNOS COM MAIS DE X DEMANDAS URGENTES
-                # ============================
-                st.markdown("---")
-                st.markdown("### Alunos com Alto Número de Demandas Urgentes")
-                st.caption("Percentual de alunos com mais de X itens urgentes marcados como 1")
 
-                col_x, _ = st.columns([1, 3])
-                with col_x:
-                    limite_x = st.number_input(
-                        "Mínimo de demandas urgentes (X):",
-                        min_value=1,
-                        max_value=len(colunas_urgentes) if colunas_urgentes else 7,
-                        value=4,
-                        step=1,
-                        key="limite_urgentes"
-                    )
-
-                if colunas_urgentes:
-
-                    df_lp["_total_urgentes"] = df_lp[colunas_urgentes].sum(axis=1)
-
-                    dados_urgencia = []
-                    for curso in lista_cursos:
-                        df_c = df_lp[df_lp[col_curso] == curso]
-                        total = len(df_c)
-                        acima = df_c[df_c["_total_urgentes"] > limite_x]
-                        pct = round(len(acima) / total * 100, 1) if total > 0 else 0
-                        dados_urgencia.append({
-                            "Curso": curso,
-                            "Total Alunos": total,
-                            f"Com mais de {limite_x} urgentes": len(acima),
-                            "Percentual (%)": pct
-                        })
-
-                    df_urgencia = pd.DataFrame(dados_urgencia).sort_values("Percentual (%)", ascending=False)
-
-                    fig_urg = px.bar(
-                        df_urgencia,
-                        x="Curso",
-                        y="Percentual (%)",
-                        color="Curso",
-                        color_discrete_map=cores,
-                        text=df_urgencia["Percentual (%)"].map(lambda v: f"{v:.1f}%"),
-                        title=f"% de alunos com mais de {limite_x} demandas urgentes por curso - Língua Portuguesa",
-                    )
-
-                    fig_urg.update_traces(textposition="outside")
-                    fig_urg.update_layout(
-                        yaxis=dict(range=[0, 110], title="% de Alunos"),
-                        xaxis_title="Curso",
-                        height=400
-                    )
-
-                    st.plotly_chart(fig_urg, use_container_width=True)
-
-                    st.dataframe(df_urgencia, use_container_width=True, hide_index=True)
-
-                    with st.expander(f"📋 Ver lista de alunos com mais de {limite_x} demandas urgentes"):
-                        col_nome = "NOME" if "NOME" in df_lp.columns else df_lp.columns[0]
-                        for curso in lista_cursos:
-                            df_c = df_lp[df_lp[col_curso] == curso]
-                            alunos_acima = df_c[df_c["_total_urgentes"] > limite_x][[col_nome, "_total_urgentes"] + colunas_urgentes].copy()
-                            alunos_acima = alunos_acima.rename(columns={"_total_urgentes": "Total Urgentes"})
-                            alunos_acima = alunos_acima.sort_values("Total Urgentes", ascending=False)
-
-                            if len(alunos_acima) > 0:
-                                st.markdown(f"**{curso}** — {len(alunos_acima)} aluno(s)")
-                                st.dataframe(alunos_acima, use_container_width=True, hide_index=True)
-                            else:
-                                st.markdown(f"**{curso}** — nenhum aluno acima do limite")
-
-                # ============================
-                # TABELA RESUMO
-                # ============================
-                st.markdown("---")
-                st.markdown("### Tabela Resumo")
-
-                colunas_exibir = ["Curso", "Total Alunos", "Media_Urgentes", "Media_Secundarias"] + colunas_urgentes + colunas_secundarias
-                colunas_exibir = [c for c in colunas_exibir if c in df_resumo.columns]
-
-                df_exibir = df_resumo[colunas_exibir].copy()
-                df_exibir = df_exibir.rename(columns={
-                    "Media_Urgentes": "Média Urgentes (%)",
-                    "Media_Secundarias": "Média Secundárias (%)"
-                })
-
-                st.dataframe(df_exibir, use_container_width=True)
 
     else:
         st.info("📂 Envie o arquivo CSV com os dados de Língua Portuguesa para começar.")
