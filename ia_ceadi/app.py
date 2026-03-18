@@ -5,7 +5,7 @@ import plotly.express as px
 
 st.set_page_config(layout="wide")
 
-st.title("Ceadi - Dashboard Inteligente de Engajamento de Alunos")
+st.title("Ceadi - Dashboard de Engajamento de Alunos")
 
 # =========================
 # Função de conversão
