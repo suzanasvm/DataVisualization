@@ -182,7 +182,7 @@ if arquivo:
         # =========================
         # NOVO GRÁFICO: EVASÃO ABSOLUTA
         # =========================
-        st.subheader("Onde está a maior evasão (valores absolutos)?")
+        st.subheader("Possibilidade de Evasão em valores absolutos?")
 
         evasao_abs = (
             merged.sort_values(by="Em risco", ascending=False)
@@ -211,7 +211,7 @@ if arquivo:
         )
 
         fig3.update_layout(
-            title=f"Top {top_n} grupos com maior número absoluto de alunos em risco",
+            title=f"Top {top_n} grupos com maior número absoluto de alunos em risco (> {dias_risco} dias)",
             yaxis=dict(categoryorder="total ascending"),
             height=altura_grafico,
             font=dict(size=tamanho_fonte),
