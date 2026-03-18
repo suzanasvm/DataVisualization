@@ -53,7 +53,7 @@ if arquivo:
 
     opcao = st.sidebar.radio(
         "Navegação",
-        ["Visão Geral", "Por Grupo"]
+        ["Visão Geral", "Por Grupo", "Email Externo"]
     )
 
     dias_risco = st.sidebar.slider(
@@ -62,13 +62,13 @@ if arquivo:
     )
 
     top_n = st.sidebar.slider(
-        "Top X grupos",
+        "Top grupos",
         min_value=3,
         max_value=50,
-        value=10
+        value=15
     )
 
-    st.sidebar.subheader("🎨 Personalização")
+    st.sidebar.subheader("Personalização")
 
     tamanho_fonte = st.sidebar.slider(
         "Tamanho da fonte",
@@ -91,38 +91,9 @@ if arquivo:
 
         st.header("Panorama Geral")
 
-        contagem = (
-            df_ativos.groupby("Grupos")
-            .size()
-            .reset_index(name="Quantidade")
-            .sort_values(by="Quantidade", ascending=False)
-            .head(top_n)
-        )
-
-        fig = px.bar(
-            contagem,
-            x="Quantidade",
-            y="Grupos",
-            orientation="h",
-            text="Quantidade",
-            color="Quantidade",
-            color_continuous_scale="viridis"
-        )
-
-        fig.update_layout(
-            title=f"📊 Top {top_n} grupos por quantidade de alunos",
-            yaxis=dict(categoryorder="total ascending"),
-            height=altura_grafico,
-            font=dict(size=tamanho_fonte)
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-
         # =========================
-        # RISCO POR GRUPO (% + ABS)
+        # BASE COMPLETA (SEM FILTRO)
         # =========================
-        st.subheader("Onde está o maior risco de evasão?")
-
         total_por_grupo = (
             df_ativos.groupby("Grupos")
             .size()
@@ -139,20 +110,53 @@ if arquivo:
 
         merged = pd.merge(total_por_grupo, risco_por_grupo, on="Grupos", how="left")
         merged["Em risco"] = merged["Em risco"].fillna(0)
-
         merged["Percentual"] = (merged["Em risco"] / merged["Total"]) * 100
 
-        merged = (
-            merged.sort_values(by="Percentual", ascending=False)
-            .head(top_n)
+        # =========================
+        # GRÁFICO 1: TAMANHO DOS GRUPOS
+        # =========================
+        contagem = (
+            total_por_grupo
+            .sort_values(by="Total", ascending=False)
         )
 
+        contagem_top = contagem.head(top_n)
+
+        fig = px.bar(
+            contagem_top,
+            x="Total",
+            y="Grupos",
+            orientation="h",
+            text="Total",
+            color="Total",
+            color_continuous_scale="viridis"
+        )
+
+        fig.update_layout(
+            title=f"Top {top_n} grupos por quantidade de alunos",
+            yaxis=dict(categoryorder="total ascending"),
+            height=altura_grafico,
+            font=dict(size=tamanho_fonte)
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+
+        # =========================
+
+        # GRÁFICO 2: RISCO (%)
+        # =========================
+        st.subheader("Onde está o maior risco de evasão?")
+
+        merged_percentual = merged.sort_values(by="Percentual", ascending=False)
+        merged_percentual_top = merged_percentual.head(top_n)
+
         fig2 = px.bar(
-            merged,
+            merged_percentual_top,
             x="Percentual",
             y="Grupos",
             orientation="h",
-            text=merged["Percentual"].round(1).astype(str) + "%",
+            text=merged_percentual_top["Percentual"].round(1).astype(str) + "%",
             color="Percentual",
             color_continuous_scale="reds",
             hover_data={
@@ -180,17 +184,15 @@ if arquivo:
         st.plotly_chart(fig2, use_container_width=True)
 
         # =========================
-        # NOVO GRÁFICO: EVASÃO ABSOLUTA
+        # GRÁFICO 3: EVASÃO ABSOLUTA
         # =========================
         st.subheader("Possibilidade de Evasão em valores absolutos?")
 
-        evasao_abs = (
-            merged.sort_values(by="Em risco", ascending=False)
-            .head(top_n)
-        )
+        merged_abs = merged.sort_values(by="Em risco", ascending=False)
+        merged_abs_top = merged_abs.head(top_n)
 
         fig3 = px.bar(
-            evasao_abs,
+            merged_abs_top,
             x="Em risco",
             y="Grupos",
             orientation="h",
@@ -211,7 +213,7 @@ if arquivo:
         )
 
         fig3.update_layout(
-            title=f"Top {top_n} grupos com maior número absoluto de alunos em risco (> {dias_risco} dias)",
+             title=f"Top {top_n} grupos com maior número absoluto de alunos em risco (> {dias_risco} dias)",
             yaxis=dict(categoryorder="total ascending"),
             height=altura_grafico,
             font=dict(size=tamanho_fonte),
@@ -222,7 +224,7 @@ if arquivo:
         # =========================
         # INDICADORES
         # =========================
-        st.subheader("Indicadores Gerais")
+        st.subheader("Indicadores rápidos")
 
         # identificar profissionais (sem grupo ou grupo vazio)
         profissionais = df_ativos[
@@ -324,3 +326,62 @@ if arquivo:
         st.write(f"Critério: mais de {dias_risco} dias sem acesso")
 
         st.dataframe(risco, use_container_width=True)
+    # =========================
+    # =========================
+    # MENU: EMAIL EXTERNO
+    # =========================
+    elif opcao == "Email Externo":
+
+        st.header("Alunos com email externo (fora do padrão ifnmg.edu.br)")
+
+        # garantir tratamento de nulos e padronização
+        df_temp = df_ativos.copy()
+        df_temp["Endereço de e-mail"] = df_temp["Endereço de e-mail"].fillna("").str.strip().str.lower()
+
+        # filtrar emails que NÃO terminam com ifnmg.edu.br
+        df_externo = df_temp[
+            ~df_temp["Endereço de e-mail"].str.endswith("ifnmg.edu.br")
+        ]
+
+        st.subheader("Lista de alunos")
+
+        st.dataframe(
+            df_externo.sort_values(by="Endereço de e-mail"),
+            use_container_width=True
+        )
+
+        # =========================
+        # INDICADORES
+        # =========================
+        st.subheader("Indicadores")
+
+        total_externo = len(df_externo)
+        total_geral = len(df_ativos)
+
+        percentual = (total_externo / total_geral * 100) if total_geral > 0 else 0
+
+        col1, col2 = st.columns(2)
+
+        col1.metric("Total de emails externos", total_externo)
+        col2.metric("Percentual", f"{percentual:.1f}%")
+
+        # =========================
+        # EXPORTAÇÃO
+        # =========================
+        st.subheader("Exportação")
+
+        from io import BytesIO
+
+        output = BytesIO()
+
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_externo.to_excel(writer, sheet_name="Email_Externo", index=False)
+
+        output.seek(0)
+
+        st.download_button(
+            label="Gerar planilha Excel",
+            data=output,
+            file_name="emails_externos.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
