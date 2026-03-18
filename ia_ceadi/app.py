@@ -222,7 +222,7 @@ if arquivo:
         # =========================
         # INDICADORES
         # =========================
-        st.subheader("Indicadores rápidos")
+        st.subheader("Indicadores Gerais")
 
         # identificar profissionais (sem grupo ou grupo vazio)
         profissionais = df_ativos[
