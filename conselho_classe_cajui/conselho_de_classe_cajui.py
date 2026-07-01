@@ -12,7 +12,7 @@ st.set_page_config(layout="wide")
 st.title("Conselho de Classe IFNMG Almenara")
 
 st.info(
-    "Envie um arquivo .docx com o boletim."
+    "Envie um arquivo .docx com o boletim condensado."
 )
 
 # =========================================================
@@ -91,6 +91,14 @@ def extrair_dados_docx(arquivo_docx):
 # =========================================================
 
 def gerar_excel(df_final, nota_corte, disciplinas_zeradas):
+    df_export = df_final.copy()
+
+    col_disc = 'Disciplinas abaixo da média'
+    df_export['Situação'] = df_export[col_disc].apply(
+        lambda x: 'Aprovado' if float(x) == 0 else ''
+    )
+    df_export['Observação'] = ''
+
     output = io.BytesIO()
     wb = Workbook()
     ws = wb.active
@@ -102,33 +110,32 @@ def gerar_excel(df_final, nota_corte, disciplinas_zeradas):
     green_fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
     yellow_fill = PatternFill(start_color="FFF3CD", end_color="FFF3CD", fill_type="solid")
 
-    headers = ['Nome'] + list(df_final.columns)
-    for col_num, col_name in enumerate(headers, 1):
-        ws.cell(row=1, column=col_num, value=col_name)
+    headers = ['Nome'] + list(df_export.columns)
 
-    for row_num, (index, row) in enumerate(df_final.iterrows(), 2):
+    for c, name in enumerate(headers, 1):
+        ws.cell(row=1, column=c, value=name)
+
+    for row_num, (index, row) in enumerate(df_export.iterrows(), 2):
         ws.cell(row=row_num, column=1, value=index)
         for col_num, value in enumerate(row, 2):
+            cell = ws.cell(row=row_num, column=col_num, value=value)
             try:
                 val = float(value)
-            except (TypeError, ValueError):
-                val = value
-            cell = ws.cell(row=row_num, column=col_num, value=val)
-            if isinstance(val, float):
-                if headers[col_num - 1] == headers[-2]:
-                    pass
-                elif headers[col_num - 1] in disciplinas_zeradas:
-                    cell.fill = yellow_fill
-                elif val < nota_corte:
-                    cell.fill = red_fill
-                else:
-                    cell.fill = green_fill
+                header = headers[col_num - 1]
+                if header not in ['Disciplinas abaixo da média', 'Média global', 'Situação', 'Observação']:
+                    if header in disciplinas_zeradas:
+                        cell.fill = yellow_fill
+                    elif val < nota_corte:
+                        cell.fill = red_fill
+                    else:
+                        cell.fill = green_fill
+            except:
+                pass
             cell.border = border
 
     wb.save(output)
     output.seek(0)
     return output
-
 
 # =========================================================
 # 3. Geração do PDF em memória (mesma lógica do script antigo)
@@ -215,9 +222,6 @@ def highlight_cells(val, col_name, col_list, nota_corte, disciplinas_zeradas):
         return ''
 
 
-def aplicar_negrito(df):
-    return df.style.map(lambda x: 'font-weight: bold', subset=pd.IndexSlice[:, :])
-
 
 # =========================================================
 # 4. Interface do Streamlit
@@ -273,7 +277,7 @@ colunas_originais = list(pivot_sorted.columns)
 
 st.subheader(f"📋 {titulo_turma}")
 st.dataframe(
-    aplicar_negrito(pivot_sorted_fmt).apply(
+    pivot_sorted_fmt.style.apply(
         lambda col: col.apply(
             lambda val: highlight_cells(val, col.name, colunas_originais, nota_corte, disciplinas_zeradas)
         ),
@@ -290,7 +294,7 @@ colunas_abreviadas = list(pivot_abreviado.columns)
 
 st.subheader(f"📋 Disciplinas abreviadas ({num_letras} letras)")
 st.dataframe(
-    aplicar_negrito(pivot_abreviado_fmt).apply(
+    pivot_abreviado_fmt.style.apply(
         lambda col: col.apply(
             lambda val: highlight_cells(val, col.name, colunas_abreviadas, nota_corte, disciplinas_zeradas_abreviadas)
         ),
