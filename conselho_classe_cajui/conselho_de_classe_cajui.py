@@ -12,7 +12,9 @@ st.set_page_config(layout="wide")
 st.title("Conselho de Classe IFNMG Almenara")
 
 st.info(
-    "Envie o boletim condensado em .docx"
+    "Envie um arquivo .docx com o boletim. Nada é salvo em disco: "
+    "o arquivo fica só na memória enquanto você usa o app, "
+    "e some assim que a página é fechada ou recarregada."
 )
 
 # =========================================================
@@ -216,7 +218,7 @@ def highlight_cells(val, col_name, col_list, nota_corte, disciplinas_zeradas):
 
 
 def aplicar_negrito(df):
-    return df.style.applymap(lambda x: 'font-weight: bold', subset=pd.IndexSlice[:, :])
+    return df.style.map(lambda x: 'font-weight: bold', subset=pd.IndexSlice[:, :])
 
 
 # =========================================================
@@ -268,7 +270,7 @@ pivot['Disciplinas abaixo da média'] = (disciplinas_para_analisar < nota_corte)
 pivot['Média global'] = pivot.drop(columns=['Disciplinas abaixo da média']).mean(axis=1).round(2)
 pivot_sorted = pivot.sort_values(by=["Disciplinas abaixo da média", "Média global"], ascending=[False, True])
 
-pivot_sorted_fmt = pivot_sorted.round(2).applymap(formatar_notas)
+pivot_sorted_fmt = pivot_sorted.round(2).map(formatar_notas)
 colunas_originais = list(pivot_sorted.columns)
 
 st.subheader(f"📋 {titulo_turma}")
@@ -285,7 +287,7 @@ st.dataframe(
 # Versão com nomes de disciplina abreviados
 pivot_abreviado = abreviar_disciplinas(pivot_sorted.copy(), num_letras)
 disciplinas_zeradas_abreviadas = pivot_abreviado.loc[:, (pivot_abreviado == 0).all()].columns.tolist()
-pivot_abreviado_fmt = pivot_abreviado.applymap(formatar_notas)
+pivot_abreviado_fmt = pivot_abreviado.map(formatar_notas)
 colunas_abreviadas = list(pivot_abreviado.columns)
 
 st.subheader(f"📋 Disciplinas abreviadas ({num_letras} letras)")
