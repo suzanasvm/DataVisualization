@@ -12,9 +12,7 @@ st.set_page_config(layout="wide")
 st.title("Conselho de Classe IFNMG Almenara")
 
 st.info(
-    "Envie um arquivo .docx com o boletim. Nada é salvo em disco: "
-    "o arquivo fica só na memória enquanto você usa o app, "
-    "e some assim que a página é fechada ou recarregada."
+    "Envie um arquivo .docx com o boletim."
 )
 
 # =========================================================
