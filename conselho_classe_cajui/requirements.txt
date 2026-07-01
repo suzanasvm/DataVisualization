@@ -1,6 +1,6 @@
 plotly==5.19.0
 python-docx
 streamlit
-pandas
+pandas>=2.1.0
 openpyxl
 xhtml2pdf
