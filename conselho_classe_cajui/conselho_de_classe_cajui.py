@@ -1,43 +1,94 @@
-import streamlit as st
-import pandas as pd
-import os
 import io
-import zipfile
+from io import BytesIO
+
+import pandas as pd
+import streamlit as st
+from docx import Document
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Border, Side
 from xhtml2pdf import pisa
-from io import BytesIO
-import base64
 
 st.set_page_config(layout="wide")
 st.title("Conselho de Classe IFNMG Almenara")
 
-# Parâmetros iniciais
-pasta_boletins = "boletim_saida"
-arquivos_disponiveis = {
-    "Agropecuária - 1º ano": "agro1_boletim.csv",
-    "Agropecuária - 2º ano": "agro2_boletim.csv",
-    "Agropecuária - 3º ano": "agro3_boletim.csv",
-    "Informática - 1º ano": "info1_boletim.csv",
-    "Informática - 2º ano": "info2_boletim.csv",
-    "Informática - 3º ano": "info3_boletim.csv",
-    "Administração - 1º ano": "adm1_boletim.csv",
-    "Administração - 2º ano": "adm2_boletim.csv",
-    "Administração - 3º ano": "adm3_boletim.csv",
-    "Zootecnia - 1º ano": "zoo1_boletim.csv",
-    "Zootecnia - 2º ano": "zoo2_boletim.csv",
-    "Zootecnia - 3º ano": "zoo3_boletim.csv",
-    "Alternância - 1º ano": "alt1_boletim.csv",
-    "Alternância - 2º ano": "alt2_boletim.csv",
-    "Alternância - 3º ano": "alt3_boletim.csv"
-}
+st.info(
+    "Envie o boletim condensado em .docx"
+)
 
-# Filtros na barra lateral
-st.sidebar.header("⚙️ Configurações")
-turma_escolhida = st.sidebar.selectbox("Selecione a turma:", list(arquivos_disponiveis.keys()))
-nota_corte = st.sidebar.number_input("Nota de corte", min_value=0, max_value=100, value=30)
-num_letras = st.sidebar.number_input("Letras para abreviação de disciplina", min_value=1, max_value=10, value=3)
-#zi
+# =========================================================
+# 1. Extração dos dados do .docx (equivalente ao script antigo
+#    convert_docx_to_csv.py, mas sem gravar CSV em disco)
+# =========================================================
+
+def extrair_dados_docx(arquivo_docx):
+    """
+    Recebe um arquivo .docx (em memória) e devolve um DataFrame
+    com os dados do boletim, já filtrando alunos "CANCELADO".
+    Se algo estiver errado, devolve (None, mensagem_de_erro).
+    """
+    doc = Document(arquivo_docx)
+    tables = doc.tables
+
+    if len(tables) < 2 or len(tables) % 2 != 0:
+        return None, "Número inválido de tabelas encontrado no arquivo."
+
+    boletins_filtrados = []
+    cabecalho = []
+
+    for i in range(0, len(tables), 2):
+        tabela_dados = tables[i]
+        tabela_boletim = tables[i + 1]
+
+        nome_aluno = "Desconhecido"
+        matricula_aluno = "Desconhecida"
+
+        # Extração dos dados pessoais do aluno
+        for row in tabela_dados.rows:
+            cell_text = row.cells[0].text.strip()
+            if ':' in cell_text:
+                key, value = cell_text.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+                if key.lower() == 'nome':
+                    nome_aluno = value
+                if key.lower() == 'matricula':
+                    matricula_aluno = value
+            elif len(row.cells) >= 2:
+                key = row.cells[0].text.strip().replace(':', '')
+                value = row.cells[1].text.strip()
+                if 'nome' in key.lower():
+                    nome_aluno = value
+                if 'matricula' in key.lower():
+                    matricula_aluno = value
+
+        # Extração do boletim, linha a linha
+        idx_estado = None
+        for j, row in enumerate(tabela_boletim.rows):
+            linha = [cell.text.strip() for cell in row.cells]
+
+            if j == 0:
+                cabecalho = ['Nome', 'Matrícula'] + linha
+                try:
+                    idx_estado = linha.index('Estado')
+                except ValueError:
+                    idx_estado = None
+                continue
+
+            if idx_estado is not None and linha and len(linha) > idx_estado:
+                estado = linha[idx_estado].upper()
+                if estado != 'CANCELADO':
+                    boletins_filtrados.append([nome_aluno, matricula_aluno] + linha)
+
+    if not boletins_filtrados:
+        return None, "Nenhum registro válido foi encontrado no arquivo."
+
+    df = pd.DataFrame(boletins_filtrados, columns=cabecalho)
+    return df, None
+
+
+# =========================================================
+# 2. Geração do Excel em memória (mesma lógica do script antigo)
+# =========================================================
 
 def gerar_excel(df_final, nota_corte, disciplinas_zeradas):
     output = io.BytesIO()
@@ -45,7 +96,8 @@ def gerar_excel(df_final, nota_corte, disciplinas_zeradas):
     ws = wb.active
     ws.title = 'Desempenho'
 
-    border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+    border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                     top=Side(style="thin"), bottom=Side(style="thin"))
     red_fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
     green_fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
     yellow_fill = PatternFill(start_color="FFF3CD", end_color="FFF3CD", fill_type="solid")
@@ -59,7 +111,7 @@ def gerar_excel(df_final, nota_corte, disciplinas_zeradas):
         for col_num, value in enumerate(row, 2):
             try:
                 val = float(value)
-            except:
+            except (TypeError, ValueError):
                 val = value
             cell = ws.cell(row=row_num, column=col_num, value=val)
             if isinstance(val, float):
@@ -77,185 +129,22 @@ def gerar_excel(df_final, nota_corte, disciplinas_zeradas):
     output.seek(0)
     return output
 
-# Função para gerar arquivos Excel e PDF para todas as turmas
-def gerar_zip_de_todas_as_turmas():
-    # Inicializa o arquivo ZIP
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        for turma, arquivo in arquivos_disponiveis.items():
-            # Lê o CSV da turma
-            arquivo_escolhido = os.path.join(pasta_boletins, arquivo)
-            df = pd.read_csv(arquivo_escolhido)
-            df.columns = [col.strip() for col in df.columns]
-            if "Nota Final" in df.columns:
-                df["Nota Final"] = pd.to_numeric(df["Nota Final"], errors="coerce").fillna(0)
-            else:
-                st.error(f"Coluna 'Nota Final' não encontrada no arquivo CSV para {turma}.")
 
-            # Tabela pivot
-            pivot = df.pivot_table(index="Nome", columns="Disciplina", values="Nota Final", aggfunc="first").fillna(0)
-            disciplinas_zeradas = pivot.loc[:, (pivot == 0).all()].columns.tolist()
-            disciplinas_para_analisar = pivot.drop(columns=disciplinas_zeradas)
+# =========================================================
+# 3. Geração do PDF em memória (mesma lógica do script antigo)
+# =========================================================
 
-            pivot['Disciplinas abaixo da média'] = (disciplinas_para_analisar < nota_corte).sum(axis=1)
-            pivot['Média global'] = pivot.drop(columns=['Disciplinas abaixo da média']).mean(axis=1).round(2)
-            pivot_sorted = pivot.sort_values(by=["Disciplinas abaixo da média", "Média global"], ascending=[False, True])
-
-            # Gera o arquivo Excel
-            excel_file = gerar_excel(pivot_sorted, nota_corte, disciplinas_zeradas)
-            excel_name = f"{arquivo.replace('.csv','')}_completo.xlsx"
-            zip_file.writestr(excel_name, excel_file.getvalue())
-
-            # Gera o PDF
-            pdf_bytes = gerar_pdf(pivot_sorted, turma, nota_corte, disciplinas_zeradas)
-            pdf_name = f"{arquivo.replace('.csv','')}.pdf"
-            zip_file.writestr(pdf_name, pdf_bytes.getvalue())
-
-    # Retorna o arquivo ZIP
-    zip_buffer.seek(0)
-    return zip_buffer
-
-
-
-
-
-# Lê o arquivo CSV da turma escolhida
-arquivo_escolhido = os.path.join(pasta_boletins, arquivos_disponiveis[turma_escolhida])
-df = pd.read_csv(arquivo_escolhido)
-df.columns = [col.strip() for col in df.columns]
-
-if "Nota Final" in df.columns:
-    df["Nota Final"] = pd.to_numeric(df["Nota Final"], errors="coerce").fillna(0)
-else:
-    st.error("Coluna 'Nota Final' não encontrada no arquivo CSV.")
-
-# Tabela pivot
-pivot = df.pivot_table(index="Nome", columns="Disciplina", values="Nota Final", aggfunc="first").fillna(0)
-disciplinas_zeradas = pivot.loc[:, (pivot == 0).all()].columns.tolist()
-disciplinas_para_analisar = pivot.drop(columns=disciplinas_zeradas)
-
-pivot['Disciplinas abaixo da média'] = (disciplinas_para_analisar < nota_corte).sum(axis=1)
-pivot['Média global'] = pivot.drop(columns=['Disciplinas abaixo da média']).mean(axis=1).round(2)
-pivot_sorted = pivot.sort_values(by=["Disciplinas abaixo da média", "Média global"], ascending=[False, True])
-
-# Gerar PDF com xhtml2pdf
-def gerar_pdf(df, titulo, nota_corte, disciplinas_zeradas):
-    html = gerar_html_tabela(df, titulo, nota_corte, disciplinas_zeradas)
-    pdf_file = BytesIO()
-    pisa.CreatePDF(io.StringIO(html), dest=pdf_file)
-    pdf_file.seek(0)
-    return pdf_file
-
-
-def highlight_cells(val, col_name, col_list):
-    try:
-        val = float(val)
-        if col_name == col_list[-2]:
-            return 'background-color: white; color: black'
-        elif col_name in disciplinas_zeradas:
-            return 'background-color: #fff3cd; color: #856404'
-        elif val < nota_corte:
-            return 'background-color: #f8d7da; color: red'
-        else:
-            return 'background-color: #d4edda; color: green'
-    except:
-        return ''
-
-def formatar_notas(val):
-    try:
-        return f"{float(val):.2f}"
-    except:
-        return val
-
-def abreviar_disciplinas(df_final, num_letras):
-    new_columns = []
-    for col in df_final.columns:
-        abbreviated = ' '.join([word[:num_letras] for word in col.split()])
-        new_columns.append(abbreviated)
-    df_final.columns = new_columns
-    return df_final
-
-pivot_abreviado = abreviar_disciplinas(pivot_sorted.copy(), num_letras)
-disciplinas_zeradas_abreviadas = pivot_abreviado.loc[:, (pivot_abreviado == 0).all()].columns.tolist()
-
-pivot_sorted_fmt = pivot_sorted.round(2).applymap(formatar_notas)
-
-def aplicar_negrito(df):
-    return df.style.applymap(lambda x: 'font-weight: bold', subset=pd.IndexSlice[:, :])
-
-st.subheader(f"📋 {turma_escolhida}")
-colunas_originais = list(pivot_sorted.columns)
-st.dataframe(
-    aplicar_negrito(pivot_sorted_fmt).apply(
-        lambda col: col.apply(lambda val: highlight_cells(val, col.name, colunas_originais)), axis=0
-    ),
-    use_container_width=True
-)
-
-pivot_abreviado_fmt = pivot_abreviado.applymap(formatar_notas)
-colunas_abreviadas = list(pivot_abreviado.columns)
-
-def highlight_cells_abreviado(val, col_name, col_list):
-    try:
-        val = float(val)
-        if col_name == col_list[-2]:
-            return 'background-color: white; color: black'
-        elif col_name in disciplinas_zeradas_abreviadas:
-            return 'background-color: #fff3cd; color: #856404'
-        elif val < nota_corte:
-            return 'background-color: #f8d7da; color: red'
-        else:
-            return 'background-color: #d4edda; color: green'
-    except:
-        return ''
-
-st.subheader(f"📋 Disciplinas abreviadas ({num_letras} letras)")
-st.dataframe(
-    aplicar_negrito(pivot_abreviado_fmt).apply(
-        lambda col: col.apply(lambda val: highlight_cells_abreviado(val, col.name, colunas_abreviadas)), axis=0
-    ),
-    use_container_width=True
-)
-
-excel_completo = gerar_excel(pivot_sorted, nota_corte, disciplinas_zeradas)
-excel_abreviado = gerar_excel(pivot_abreviado, nota_corte, disciplinas_zeradas_abreviadas)
-
-st.download_button(
-    label="📥 Baixar Excel completo",
-    data=excel_completo,
-    file_name=f"{arquivos_disponiveis[turma_escolhida].replace('.csv','')}_completo.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-# Função para gerar HTML
 def gerar_html_tabela(df, titulo, nota_corte, disciplinas_zeradas):
     html = f"""
     <html>
     <head>
         <style>
-            @page {{
-                size: A4 landscape;
-                margin: 2mm;
-            }}
-            body {{
-                font-family: Arial, sans-serif;
-                font-size: 6px;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-            }}
-            th, td {{
-                border: 1px solid #000;
-                padding: 1px;
-                text-align: center;
-            }}
-            th {{
-                background-color: #f2f2f2;
-            }}
-            h2 {{
-                text-align: center;
-            }}
+            @page {{ size: A4 landscape; margin: 2mm; }}
+            body {{ font-family: Arial, sans-serif; font-size: 6px; }}
+            table {{ width: 100%; border-collapse: collapse; }}
+            th, td {{ border: 1px solid #000; padding: 1px; text-align: center; }}
+            th {{ background-color: #f2f2f2; }}
+            h2 {{ text-align: center; }}
             .abaixo-da-media {{ background-color: #f8d7da; color: red; }}
             .acima-da-media {{ background-color: #d4edda; color: green; }}
             .disciplina-zerada {{ background-color: #fff3cd; color: #856404; }}
@@ -273,7 +162,6 @@ def gerar_html_tabela(df, titulo, nota_corte, disciplinas_zeradas):
             </thead>
             <tbody>
     """
-
     for index, row in df.iterrows():
         html += f"<tr><td>{index}</td>"
         for col_name, value in row.items():
@@ -284,26 +172,152 @@ def gerar_html_tabela(df, titulo, nota_corte, disciplinas_zeradas):
                 classe = "abaixo-da-media" if value < nota_corte else "acima-da-media"
             html += f'<td class="{classe}">{value}</td>'
         html += "</tr>"
-
-    html += """
-            </tbody>
-        </table>
-    </body>
-    </html>
-    """
+    html += "</tbody></table></body></html>"
     return html
 
-st.sidebar.download_button(
-    label="📂 Baixar todos os arquivos",
-    data=gerar_zip_de_todas_as_turmas(),
-    file_name="boletins_conselho_de_classe.zip",
-    mime="application/zip"
+
+def gerar_pdf(df, titulo, nota_corte, disciplinas_zeradas):
+    html = gerar_html_tabela(df, titulo, nota_corte, disciplinas_zeradas)
+    pdf_file = BytesIO()
+    pisa.CreatePDF(io.StringIO(html), dest=pdf_file)
+    pdf_file.seek(0)
+    return pdf_file
+
+
+def formatar_notas(val):
+    try:
+        return f"{float(val):.2f}"
+    except (TypeError, ValueError):
+        return val
+
+
+def abreviar_disciplinas(df_final, num_letras):
+    new_columns = []
+    for col in df_final.columns:
+        abreviado = ' '.join(word[:num_letras] for word in col.split())
+        new_columns.append(abreviado)
+    df_final.columns = new_columns
+    return df_final
+
+
+def highlight_cells(val, col_name, col_list, nota_corte, disciplinas_zeradas):
+    try:
+        val = float(val)
+        if col_name == col_list[-2]:
+            return 'background-color: white; color: black'
+        elif col_name in disciplinas_zeradas:
+            return 'background-color: #fff3cd; color: #856404'
+        elif val < nota_corte:
+            return 'background-color: #f8d7da; color: red'
+        else:
+            return 'background-color: #d4edda; color: green'
+    except (TypeError, ValueError):
+        return ''
+
+
+def aplicar_negrito(df):
+    return df.style.applymap(lambda x: 'font-weight: bold', subset=pd.IndexSlice[:, :])
+
+
+# =========================================================
+# 4. Interface do Streamlit
+# =========================================================
+
+st.sidebar.header("⚙️ Configurações")
+nota_corte = st.sidebar.number_input("Nota de corte", min_value=0, max_value=100, value=60)
+num_letras = st.sidebar.number_input("Letras para abreviação de disciplina", min_value=1, max_value=10, value=3)
+
+arquivo_enviado = st.file_uploader(
+    "Envie o boletim (apenas um arquivo .docx por vez)",
+    type=["docx"],
+    accept_multiple_files=False,
 )
-# Download do PDF
-pdf_bytes = gerar_pdf(pivot_sorted, turma_escolhida, nota_corte, disciplinas_zeradas)
-st.download_button(
-    label="📄 Baixar PDF",
-    data=pdf_bytes,
-    file_name=f"{arquivos_disponiveis[turma_escolhida].replace('.csv','')}.pdf",
-    mime="application/pdf"
+
+if arquivo_enviado is None:
+    st.warning("Aguardando o envio de um arquivo .docx.")
+    st.stop()
+
+# O arquivo enviado já chega como objeto em memória (BytesIO).
+# Não é gravado em nenhuma pasta do servidor.
+df, erro = extrair_dados_docx(arquivo_enviado)
+
+if erro:
+    st.error(erro)
+    st.stop()
+
+if "Nota Final" not in df.columns:
+    st.error("Coluna 'Nota Final' não encontrada no arquivo enviado.")
+    st.stop()
+
+df["Nota Final"] = pd.to_numeric(df["Nota Final"], errors="coerce").fillna(0)
+
+if "Disciplina" not in df.columns:
+    st.error("Coluna 'Disciplina' não encontrada no arquivo enviado.")
+    st.stop()
+
+# Nome da turma usado nos títulos do PDF e nos nomes dos arquivos baixados
+nome_base = arquivo_enviado.name.rsplit('.', 1)[0]
+titulo_turma = st.text_input("Nome da turma (usado nos arquivos gerados)", value=nome_base)
+
+# Tabela pivot: uma linha por aluno, uma coluna por disciplina
+pivot = df.pivot_table(index="Nome", columns="Disciplina", values="Nota Final", aggfunc="first").fillna(0)
+disciplinas_zeradas = pivot.loc[:, (pivot == 0).all()].columns.tolist()
+disciplinas_para_analisar = pivot.drop(columns=disciplinas_zeradas)
+
+pivot['Disciplinas abaixo da média'] = (disciplinas_para_analisar < nota_corte).sum(axis=1)
+pivot['Média global'] = pivot.drop(columns=['Disciplinas abaixo da média']).mean(axis=1).round(2)
+pivot_sorted = pivot.sort_values(by=["Disciplinas abaixo da média", "Média global"], ascending=[False, True])
+
+pivot_sorted_fmt = pivot_sorted.round(2).applymap(formatar_notas)
+colunas_originais = list(pivot_sorted.columns)
+
+st.subheader(f"📋 {titulo_turma}")
+st.dataframe(
+    aplicar_negrito(pivot_sorted_fmt).apply(
+        lambda col: col.apply(
+            lambda val: highlight_cells(val, col.name, colunas_originais, nota_corte, disciplinas_zeradas)
+        ),
+        axis=0,
+    ),
+    use_container_width=True,
 )
+
+# Versão com nomes de disciplina abreviados
+pivot_abreviado = abreviar_disciplinas(pivot_sorted.copy(), num_letras)
+disciplinas_zeradas_abreviadas = pivot_abreviado.loc[:, (pivot_abreviado == 0).all()].columns.tolist()
+pivot_abreviado_fmt = pivot_abreviado.applymap(formatar_notas)
+colunas_abreviadas = list(pivot_abreviado.columns)
+
+st.subheader(f"📋 Disciplinas abreviadas ({num_letras} letras)")
+st.dataframe(
+    aplicar_negrito(pivot_abreviado_fmt).apply(
+        lambda col: col.apply(
+            lambda val: highlight_cells(val, col.name, colunas_abreviadas, nota_corte, disciplinas_zeradas_abreviadas)
+        ),
+        axis=0,
+    ),
+    use_container_width=True,
+)
+
+# =========================================================
+# 5. Downloads (Excel e PDF gerados só em memória)
+# =========================================================
+
+excel_completo = gerar_excel(pivot_sorted, nota_corte, disciplinas_zeradas)
+pdf_bytes = gerar_pdf(pivot_sorted, titulo_turma, nota_corte, disciplinas_zeradas)
+
+col1, col2 = st.columns(2)
+with col1:
+    st.download_button(
+        label="📥 Baixar Excel",
+        data=excel_completo,
+        file_name=f"{nome_base}_completo.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+with col2:
+    st.download_button(
+        label="📄 Baixar PDF",
+        data=pdf_bytes,
+        file_name=f"{nome_base}.pdf",
+        mime="application/pdf",
+    )
