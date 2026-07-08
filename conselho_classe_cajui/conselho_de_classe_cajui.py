@@ -83,6 +83,12 @@ def extrair_dados_docx(arquivo_docx):
         return None, "Nenhum registro válido foi encontrado no arquivo."
 
     df = pd.DataFrame(boletins_filtrados, columns=cabecalho)
+    
+    # NOVO: Remover linhas onde a coluna Estado está vazia
+    if 'Estado' in df.columns:
+        df = df[df['Estado'].notna() & (df['Estado'].str.strip() != '')]
+        df = df.reset_index(drop=True)
+    
     return df, None
 
 
